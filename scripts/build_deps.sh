@@ -38,7 +38,7 @@ gtsam()   { build gtsam -DGTSAM_BUILD_TESTS=OFF -DGTSAM_BUILD_EXAMPLES_ALWAYS=OF
                 -DGTSAM_BUILD_UNSTABLE=OFF -DGTSAM_USE_SYSTEM_EIGEN=ON -DGTSAM_WITH_TBB=OFF \
                 -DGTSAM_ENABLE_BOOST_SERIALIZATION=OFF -DGTSAM_USE_BOOST_FEATURES=OFF \
                 -DGTSAM_BUILD_PYTHON=OFF -DGTSAM_INSTALL_MATLAB_TOOLBOX=OFF \
-                -DGTSAM_BUILD_WITH_MARCH_NATIVE=ON; }
+                -DGTSAM_BUILD_WITH_MARCH_NATIVE=ON -DCMAKE_INSTALL_RPATH="$PREFIX/lib"; }
 
 components=("$@")
 [[ ${#components[@]} -eq 0 ]] && components=(blasfeo fatrop eigen ceres g2o gtsam)
