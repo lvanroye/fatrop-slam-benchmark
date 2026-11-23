@@ -1,0 +1,5 @@
+find_package(GTSAM CONFIG QUIET)
+if(GTSAM_FOUND)
+    add_library(slam_gtsam STATIC gtsam_solver.cpp)
+    target_link_libraries(slam_gtsam PUBLIC slam_common gtsam)
+endif()
