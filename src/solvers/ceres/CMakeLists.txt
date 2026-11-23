@@ -1,0 +1,5 @@
+find_package(Ceres CONFIG QUIET)
+if(Ceres_FOUND)
+    add_library(slam_ceres STATIC ceres_solver.cpp)
+    target_link_libraries(slam_ceres PUBLIC slam_common Ceres::ceres)
+endif()
