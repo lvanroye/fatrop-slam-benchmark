@@ -1,0 +1,94 @@
+// slam_benchmark <file.g2o> [--max-iterations N] [--solvers a,b,...]
+//
+// Runs every compiled-in solver on one pose graph and prints one line per
+// solver: iterations, wall time, objective and gradient norm at the
+// returned poses.
+#include "solvers/solvers.hpp"
+
+#include <cstdio>
+#include <cstring>
+#include <functional>
+#include <iostream>
+#include <string>
+#include <vector>
+
+using namespace slam;
+
+template <class S>
+using SolveFn = std::function<Result(const Problem<S> &, const Options &)>;
+
+template <class S>
+std::vector<std::pair<std::string, SolveFn<S>>> solvers()
+{
+    std::vector<std::pair<std::string, SolveFn<S>>> v;
+#ifdef SLAM_WITH_FATROP
+    v.emplace_back("fatrop", [](const Problem<S> &p, const Options &o) { return solve_fatrop(p, o); });
+#endif
+#ifdef SLAM_WITH_CERES
+    v.emplace_back("ceres", [](const Problem<S> &p, const Options &o) { return solve_ceres(p, o); });
+#endif
+#ifdef SLAM_WITH_G2O
+    v.emplace_back("g2o", [](const Problem<S> &p, const Options &o) { return solve_g2o(p, o); });
+#endif
+#ifdef SLAM_WITH_GTSAM
+    v.emplace_back("gtsam", [](const Problem<S> &p, const Options &o) { return solve_gtsam(p, o); });
+#endif
+    return v;
+}
+
+template <class S>
+int run(const std::string &path, const Options &opt, const std::string &only)
+{
+    const Problem<S> p = load_g2o<S>(path);
+    std::vector<Eigen::VectorXd> x0(p.poses.begin(), p.poses.end());
+    std::printf("dataset %s  %s  poses %zu  edges %zu  repaired_info %d\n", p.name.c_str(), S::name,
+                p.poses.size(), p.edges.size(), p.n_repaired_info);
+    std::printf("%-8s %5s %10s %16s %12s  %s\n", "solver", "iter", "time_s", "objective", "grad_inf",
+                "status");
+    std::printf("%-8s %5s %10s %16.8e %12.3e\n", "initial", "-", "-", objective(p, x0),
+                gradient_norm(p, x0));
+    for (const auto &[name, solve] : solvers<S>())
+    {
+        if (!only.empty() && ("," + only + ",").find("," + name + ",") == std::string::npos)
+            continue;
+        Result r;
+        try
+        {
+            r = solve(p, opt);
+        }
+        catch (const std::exception &e)
+        {
+            std::printf("%-8s %5s %10s %16s %12s  error: %s\n", name.c_str(), "-", "-", "-", "-", e.what());
+            continue;
+        }
+        std::printf("%-8s %5d %10.4f %16.8e %12.3e  %s%s\n", name.c_str(), r.iterations, r.time_s,
+                    objective(p, r.poses), gradient_norm(p, r.poses), r.converged ? "converged" : "not converged",
+                    r.status.empty() ? "" : (" (" + r.status + ")").c_str());
+        std::fflush(stdout);
+    }
+    return 0;
+}
+
+int main(int argc, char **argv)
+{
+    if (argc < 2)
+    {
+        std::cerr << "usage: " << argv[0] << " <file.g2o> [--max-iterations N] [--solvers a,b]\n";
+        return 1;
+    }
+    Options opt;
+    std::string only;
+    for (int i = 2; i + 1 < argc; i += 2)
+    {
+        if (!std::strcmp(argv[i], "--max-iterations"))
+            opt.max_iterations = std::stoi(argv[i + 1]);
+        else if (!std::strcmp(argv[i], "--solvers"))
+            only = argv[i + 1];
+    }
+    switch (detect_dimension(argv[1]))
+    {
+    case 2: return run<SE2>(argv[1], opt, only);
+    case 3: return run<SE3>(argv[1], opt, only);
+    default: std::cerr << "not an SE2/SE3 pose graph: " << argv[1] << "\n"; return 1;
+    }
+}
