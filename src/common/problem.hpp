@@ -37,7 +37,7 @@ struct Problem
 
 struct Options
 {
-    int max_iterations = 200;
+    int max_iterations = 0; // 0: keep the solver's default
 };
 
 struct Result

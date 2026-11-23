@@ -240,7 +240,8 @@ Result solve(const Problem<S> &problem, const Options &options)
     OptionRegistry opts;
     IpAlgBuilder<GraphProblem> builder(nlp);
     auto alg = builder.with_options_registry(&opts).build();
-    opts.set_option<Index>("max_iter", options.max_iterations);
+    if (options.max_iterations > 0)
+        opts.set_option<Index>("max_iter", options.max_iterations);
     opts.set_option<Index>("print_level", 0);
     opts.set_option<bool>("suppress_banner", true);
     const IpSolverReturnFlag flag = alg->optimize();

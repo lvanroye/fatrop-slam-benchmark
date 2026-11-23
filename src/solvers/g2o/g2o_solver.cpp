@@ -88,13 +88,15 @@ Result solve(const Problem<S> &problem, const Options &options)
     }
 
     optimizer.initializeOptimization();
-    const int iterations = optimizer.optimize(options.max_iterations);
+    // g2o has no default iteration count; use GTSAM's default of 100.
+    const int cap = options.max_iterations > 0 ? options.max_iterations : 100;
+    const int iterations = optimizer.optimize(cap);
     const auto t1 = std::chrono::steady_clock::now();
 
     Result res;
     res.solver = "g2o";
     res.iterations = iterations;
-    res.converged = iterations > 0 && iterations < options.max_iterations;
+    res.converged = iterations > 0 && iterations < cap;
     res.time_s = std::chrono::duration<double>(t1 - t0).count();
     if (iterations <= 0)
         res.status = "failed";

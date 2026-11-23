@@ -111,7 +111,8 @@ Result solve(const Problem<S> &problem, const Options &options)
     cp.SetParameterBlockConstant(x[problem.fixed].data());
 
     ceres::Solver::Options so;
-    so.max_num_iterations = options.max_iterations;
+    if (options.max_iterations > 0)
+        so.max_num_iterations = options.max_iterations;
     so.logging_type = ceres::SILENT;
     ceres::Solver::Summary summary;
     ceres::Solve(so, &cp, &summary);

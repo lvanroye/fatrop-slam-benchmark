@@ -5,8 +5,9 @@
 //     the pose space S (src/common/lie.hpp), started from problem.poses;
 //   - hold problem.fixed at its initial value (gauge), using the solver's
 //     usual mechanism;
-//   - use the solver's out-of-the-box algorithm and default settings, except
-//     Options::max_iterations and silencing its log output;
+//   - use the solver's out-of-the-box algorithm and default settings; only
+//     silence its log output, and set the iteration cap only if
+//     Options::max_iterations > 0;
 //   - time everything from building the solver's problem to the end of the
 //     solve (Result::time_s), single-threaded;
 //   - return the final poses in S::Pose storage order.
