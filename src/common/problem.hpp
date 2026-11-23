@@ -21,7 +21,7 @@ struct Edge
 {
     int a, b;
     typename S::Pose z;                               // relative measurement a -> b
-    Eigen::Matrix<double, S::dim, S::dim> info;       // Omega
+    Eigen::Matrix<double, S::dim, S::dim> info;       // Omega / m (see load_g2o)
     Eigen::Matrix<double, S::dim, S::dim> sqrt_info;  // upper-triangular U, U^T U = Omega
 };
 
@@ -140,6 +140,8 @@ Problem<S> load_g2o(const std::string &path)
         index[id] = static_cast<int>(p.poses.size());
         p.poses.push_back(x);
     }
+    // Mean over the scalar residuals: Omega / m with m = n_edges * dim.
+    const double m = static_cast<double>(ids.size() * S::dim);
     for (std::size_t k = 0; k < ids.size(); ++k)
     {
         auto &e = p.edges[k];
@@ -148,6 +150,7 @@ Problem<S> load_g2o(const std::string &path)
         e.a = index[ids[k].first];
         e.b = index[ids[k].second];
         p.n_repaired_info += repair_info<S::dim>(e.info);
+        e.info /= m;
         e.sqrt_info = e.info.llt().matrixU();
     }
     p.fixed = (fix_id >= 0 && index.count(fix_id)) ? index[fix_id] : 0;
@@ -175,7 +178,7 @@ typename S::Pose pose_of(const Eigen::VectorXd &x)
     return x.head<S::nx>();
 }
 
-// Objective 0.5 * sum_e r^T Omega r at the given poses.
+// Objective 0.5 * sum_e r^T Omega r / m at the given poses.
 template <class S>
 double objective(const Problem<S> &p, const std::vector<Eigen::VectorXd> &x)
 {
