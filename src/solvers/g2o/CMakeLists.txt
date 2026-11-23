@@ -1,0 +1,5 @@
+find_package(g2o CONFIG QUIET)
+if(g2o_FOUND)
+    add_library(slam_g2o STATIC g2o_solver.cpp)
+    target_link_libraries(slam_g2o PUBLIC slam_common PRIVATE g2o::core g2o::stuff g2o::solver_eigen)
+endif()
