@@ -1,0 +1,5 @@
+find_package(fatrop CONFIG QUIET)
+if(fatrop_FOUND)
+    add_library(slam_fatrop STATIC fatrop_solver.cpp)
+    target_link_libraries(slam_fatrop PUBLIC slam_common PRIVATE fatrop::fatrop)
+endif()
