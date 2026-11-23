@@ -8,6 +8,7 @@
 #include <fatrop/ip_algorithm/ip_alg_builder.hpp>
 #include <fatrop/ip_algorithm/ip_algorithm.hpp>
 #include <fatrop/ip_algorithm/ip_data.hpp>
+#include <fatrop/linear_algebra/blasfeo_operations.hpp>
 
 #include <algorithm>
 #include <chrono>
@@ -26,24 +27,6 @@ using fatrop::Scalar;
 // Gauge prior weight on problem.fixed: 0.5 * w * ||local(x0, x)||^2.
 constexpr double prior_weight = 1e6;
 
-// Compressed rows: row r holds items[start[r] .. start[r + 1]).
-struct Csr
-{
-    std::vector<Index> start, items;
-    template <class Rows>
-    explicit Csr(const Rows &rows)
-    {
-        start.push_back(0);
-        for (const auto &r : rows)
-        {
-            items.insert(items.end(), r.begin(), r.end());
-            start.push_back(static_cast<Index>(items.size()));
-        }
-    }
-    const Index *begin(Index r) const { return items.data() + start[r]; }
-    const Index *end(Index r) const { return items.data() + start[r + 1]; }
-};
-
 template <class S>
 class PoseGraph : public fatrop::GraphAbstract
 {
@@ -53,15 +36,33 @@ class PoseGraph : public fatrop::GraphAbstract
 
 public:
     explicit PoseGraph(const Problem<S> &p)
-        : p_(p), n_(static_cast<Index>(p.poses.size())), incident_(incident_edges(p)),
-          pairs_(build_pairs(p)), neighbors_(neighbor_rows()), pair_edges_(pair_edge_rows(p))
+        : p_(p), n_(static_cast<Index>(p.poses.size())), edge_pair_(p.edges.size(), -1),
+          diag_ws_(n_)
     {
+        // Unique pairs (i > j); edge_pair_[k] = pair index of edge k (-1 for self-loops).
+        std::vector<std::tuple<Index, Index, Index>> v;
+        for (std::size_t k = 0; k < p.edges.size(); ++k)
+            if (p.edges[k].a != p.edges[k].b)
+                v.emplace_back(std::max(p.edges[k].a, p.edges[k].b),
+                               std::min(p.edges[k].a, p.edges[k].b), static_cast<Index>(k));
+        std::sort(v.begin(), v.end());
+        for (const auto &[i, j, k] : v)
+        {
+            if (pairs_.empty() || pairs_.back() != std::make_pair(i, j))
+                pairs_.emplace_back(i, j);
+            edge_pair_[k] = static_cast<Index>(pairs_.size()) - 1;
+        }
+        off_ws_.resize(pairs_.size());
     }
 
-    Index get_num_blocks() const override { return n_; }
-    Index get_block_size(Index) const override { return S::nx; }
-    Index get_block_size_tan(Index) const override { return S::dim; }
-    std::vector<std::pair<Index, Index>> get_off_diag_edges() const override { return pairs_; }
+    fatrop::GraphStructure get_structure() const override
+    {
+        fatrop::GraphStructure st;
+        st.block_sizes.assign(n_, S::nx);
+        st.block_sizes_tan.assign(n_, S::dim);
+        st.off_diag_edges = pairs_;
+        return st;
+    }
 
     Index get_initial(Scalar *x) const override
     {
@@ -90,59 +91,34 @@ public:
         return 0;
     }
 
-    Index eval_grad_k(Index k, const Scalar *scale, const Scalar *x, Scalar *res) override
+    Index eval_gradient(const Scalar *scale, const Scalar *x, Scalar *grad) override
     {
-        Tangent r, g = Tangent::Zero();
-        Jac Ja, Jb;
-        for (const Index *it = incident_.begin(k); it != incident_.end(k); ++it)
-        {
-            const auto &e = p_.edges[*it];
-            S::residual(pose(x, e.a), pose(x, e.b), e.z, r, &Ja, &Jb);
-            g += own_jacobian(e, k, Ja, Jb).transpose() * (e.info * r);
-        }
-        if (k == p_.fixed)
-        {
-            const Tangent d = S::local(p_.poses[k], pose(x, k));
-            Tangent gd = prior_weight * d;
-            if constexpr (S::nx == 7)
-                gd.template tail<3>() = S::jr_inv(d.template tail<3>()).transpose() * gd.template tail<3>();
-            g += gd;
-        }
-        Eigen::Map<Tangent> out(res);
-        out = scale[0] * g;
+        accumulate<false>(scale[0], x, grad);
         return 0;
     }
 
-    Index eval_Hk(Index i, Index j, const Scalar *scale, const Scalar *x, const Scalar *,
-                  MAT *res) override
+    Index eval_hessian(const Scalar *scale, const Scalar *x, const Scalar *,
+                       fatrop::GraphHessianView &H) override
     {
-        Tangent r;
-        Jac Ja, Jb, H = Jac::Zero();
-        if (i == j)
+        for (auto &D : diag_ws_)
+            D.setZero();
+        for (auto &O : off_ws_)
+            O.setZero();
+        accumulate<true>(scale[0], x, H.grad());
+        for (Index k = 0; k < n_; ++k)
         {
-            for (const Index *it = incident_.begin(i); it != incident_.end(i); ++it)
-            {
-                const auto &e = p_.edges[*it];
-                S::residual(pose(x, e.a), pose(x, e.b), e.z, r, &Ja, &Jb);
-                const Jac J = own_jacobian(e, i, Ja, Jb);
-                H += J.transpose() * e.info * J;
-            }
-            if (i == p_.fixed)
-                H.diagonal().array() += prior_weight;
+            if (k == p_.fixed)
+                diag_ws_[k].diagonal().array() += prior_weight;
+            diag_ws_[k] *= scale[0];
+            fatrop::MatRealView Hk = H.diag(k);
+            fatrop::pack_mat(S::dim, S::dim, diag_ws_[k].data(), S::dim, Hk, 0, 0);
         }
-        else
+        for (std::size_t e = 0; e < pairs_.size(); ++e)
         {
-            const Index *nb = std::lower_bound(neighbors_.begin(j), neighbors_.end(j), i);
-            const Index pair = static_cast<Index>(nb - neighbors_.items.data());
-            for (const Index *it = pair_edges_.begin(pair); it != pair_edges_.end(pair); ++it)
-            {
-                const auto &e = p_.edges[*it];
-                S::residual(pose(x, e.a), pose(x, e.b), e.z, r, &Ja, &Jb);
-                H += e.a == i ? (Ja.transpose() * e.info * Jb).eval() : (Jb.transpose() * e.info * Ja).eval();
-            }
+            off_ws_[e] *= scale[0];
+            fatrop::MatRealView He = H.off(static_cast<Index>(e));
+            fatrop::pack_mat(S::dim, S::dim, off_ws_[e].data(), S::dim, He, 0, 0);
         }
-        H *= scale[0];
-        fatrop::blasfeo_pack_mat_wrap(S::dim, S::dim, H.data(), S::dim, res, 0, 0);
         return 0;
     }
 
@@ -152,67 +128,52 @@ private:
     {
         return Eigen::Map<const Pose>(x + k * S::nx);
     }
+    static Eigen::Map<Tangent> seg(Scalar *g, Index k) { return Eigen::Map<Tangent>(g + k * S::dim); }
 
-    static Jac own_jacobian(const Edge<S> &e, Index k, const Jac &Ja, const Jac &Jb)
+    // One residual + Jacobian evaluation per edge; gradient (and, with WithHess,
+    // unscaled J^T Omega J into the workspaces).
+    template <bool WithHess>
+    void accumulate(Scalar scale, const Scalar *x, Scalar *grad)
     {
-        return e.a == e.b ? (Ja + Jb).eval() : e.a == k ? Ja : Jb;
-    }
-
-    static Csr incident_edges(const Problem<S> &p)
-    {
-        std::vector<std::vector<Index>> rows(p.poses.size());
-        for (std::size_t k = 0; k < p.edges.size(); ++k)
+        Tangent r;
+        Jac Ja, Jb;
+        for (std::size_t k = 0; k < p_.edges.size(); ++k)
         {
-            rows[p.edges[k].a].push_back(static_cast<Index>(k));
-            if (p.edges[k].b != p.edges[k].a)
-                rows[p.edges[k].b].push_back(static_cast<Index>(k));
-        }
-        return Csr(rows);
-    }
-
-    // Unordered pairs (i > j), sorted by (j, i), so that pair index = position in neighbors_.
-    static std::vector<std::pair<Index, Index>> build_pairs(const Problem<S> &p)
-    {
-        std::vector<std::pair<Index, Index>> v;
-        for (const auto &e : p.edges)
-            if (e.a != e.b)
-                v.emplace_back(std::max(e.a, e.b), std::min(e.a, e.b));
-        std::sort(v.begin(), v.end(), [](auto &l, auto &r) {
-            return std::tie(l.second, l.first) < std::tie(r.second, r.first);
-        });
-        v.erase(std::unique(v.begin(), v.end()), v.end());
-        return v;
-    }
-
-    Csr neighbor_rows() const
-    {
-        std::vector<std::vector<Index>> rows(n_);
-        for (const auto &[i, j] : pairs_)
-            rows[j].push_back(i);
-        return Csr(rows);
-    }
-
-    Csr pair_edge_rows(const Problem<S> &p) const
-    {
-        std::vector<std::vector<Index>> rows(pairs_.size());
-        for (std::size_t k = 0; k < p.edges.size(); ++k)
-        {
-            const auto &e = p.edges[k];
+            const auto &e = p_.edges[k];
+            S::residual(pose(x, e.a), pose(x, e.b), e.z, r, &Ja, &Jb);
+            const Tangent Wr = e.info * r;
             if (e.a == e.b)
+            {
+                const Jac J = Ja + Jb;
+                seg(grad, e.a) += J.transpose() * Wr;
+                if constexpr (WithHess)
+                    diag_ws_[e.a] += J.transpose() * e.info * J;
                 continue;
-            const Index i = std::max(e.a, e.b), j = std::min(e.a, e.b);
-            const Index *nb = std::lower_bound(neighbors_.begin(j), neighbors_.end(j), i);
-            rows[nb - neighbors_.items.data()].push_back(static_cast<Index>(k));
+            }
+            seg(grad, e.a) += Ja.transpose() * Wr;
+            seg(grad, e.b) += Jb.transpose() * Wr;
+            if constexpr (WithHess)
+            {
+                diag_ws_[e.a] += Ja.transpose() * e.info * Ja;
+                diag_ws_[e.b] += Jb.transpose() * e.info * Jb;
+                off_ws_[edge_pair_[k]] += e.a > e.b ? (Ja.transpose() * e.info * Jb).eval()
+                                                    : (Jb.transpose() * e.info * Ja).eval();
+            }
         }
-        return Csr(rows);
+        const Tangent d = S::local(p_.poses[p_.fixed], pose(x, p_.fixed));
+        Tangent gd = prior_weight * d;
+        if constexpr (S::nx == 7)
+            gd.template tail<3>() = S::jr_inv(d.template tail<3>()).transpose() * gd.template tail<3>();
+        seg(grad, p_.fixed) += gd;
+        Eigen::Map<Eigen::VectorXd>(grad, n_ * S::dim) *= scale;
     }
 
     const Problem<S> &p_;
     const Index n_;
-    const Csr incident_;
-    const std::vector<std::pair<Index, Index>> pairs_;
-    const Csr neighbors_;  // row j: sorted i > j paired with j; flat position = pair index
-    const Csr pair_edges_; // row pair: edges contributing to that Hessian block
+    std::vector<std::pair<Index, Index>> pairs_;
+    std::vector<Index> edge_pair_;
+    std::vector<Jac> diag_ws_; // unscaled diagonal blocks
+    std::vector<Jac> off_ws_;  // unscaled off-diagonal blocks, one per pair
 };
 
 const char *flag_name(fatrop::IpSolverReturnFlag f)
