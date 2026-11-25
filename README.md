@@ -104,8 +104,9 @@ For each dataset, one line per solver:
 ## Results
 
 `MAX_ITERATIONS=1000000 TIMEOUT=600 taskset -c 2 scripts/run_benchmarks.sh` on an Intel Core
-i7-10850H: no iteration cap, a 600 s time limit per run, one pinned core per run. Each cell is wall
-time / iterations.
+i7-10850H: no iteration cap, a 600 s time limit per run, one pinned core per run. Every other
+setting is each solver's default, including its convergence criterion, so the solvers stop at
+different accuracies (see the accuracy table). Each cell is wall time / iterations.
 
 | dataset | dim | poses | edges | fatrop | Ceres | g2o | GTSAM |
 |---|---|--:|--:|--:|--:|--:|--:|
