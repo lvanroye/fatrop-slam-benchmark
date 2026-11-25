@@ -125,3 +125,26 @@ time / iterations.
 | grid3D | 3D | 8,000 | 22,236 | 181.0 s / 100 | x | x | **171.7 s / 52** |
 
 **Bold**: fastest. x: did not converge within the time limit.
+
+Accuracy: max-norm of the objective gradient at the returned poses (`grad_inf`), same run.
+**Bold**: smallest.
+
+| dataset | fatrop | Ceres | g2o | GTSAM |
+|---|--:|--:|--:|--:|
+| intel | 2e-9 | 5e-8 | **6e-15** | 6e-7 |
+| CSAIL | 5e-9 | 7e-3 | **1e-10** | 1e-4 |
+| MIT | 8e-9 | 4e-4 | **4e-10** | 2e-1 |
+| kitti_00 | 1e-9 | 1e-7 | **2e-14** | 7e-7 |
+| manhattan | 2e-9 | 2e-3 | **2e-11** | 9e-7 |
+| city10000 | 1e-9 | 8e-8 | **1e-11** | 2e-8 |
+| ais2klinik | 5e-10 | 5e-7 | **1e-15** | 3e-6 |
+| parking-garage | 2e-9 | 6e-9 | **2e-17** | 1e-6 |
+| sphere2500 | 4e-9 | 4e-7 | **5e-12** | 1e-6 |
+| sphere_bignoise_vertex3 | 7e-7 | 2e-3 | **1e-7** | 7e-3 |
+| cubicle | 4e-10 | 7e-5 | **1e-12** | 6e-6 |
+| torus3D | 6e-7 | 3e-5 | **1e-9** | 1e-4 |
+| rim | 5e-9 | 4e-5 | **2e-11** | 4e-2 |
+| grid3D | **2e-7** | x | x | 8e-5 |
+
+fatrop stops at its tolerance (1e-8, or 1e-6 at an acceptable point); g2o keeps iterating until it can no
+longer lower the cost; Ceres and GTSAM stop on relative cost change.
