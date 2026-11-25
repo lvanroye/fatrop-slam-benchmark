@@ -126,25 +126,25 @@ time / iterations.
 
 **Bold**: fastest. x: did not converge within the time limit.
 
-Accuracy: max-norm of the objective gradient at the returned poses (`grad_inf`), same run.
-**Bold**: smallest.
+Accuracy: final objective and, in brackets, the max-norm of its gradient at the returned poses
+(`grad_inf`), same run. **Bold**: lowest objective.
 
 | dataset | fatrop | Ceres | g2o | GTSAM |
 |---|--:|--:|--:|--:|
-| intel | 2e-9 | 5e-8 | **6e-15** | 6e-7 |
-| CSAIL | 5e-9 | 7e-3 | **1e-10** | 1e-4 |
-| MIT | 8e-9 | 4e-4 | **4e-10** | 2e-1 |
-| kitti_00 | 1e-9 | 1e-7 | **2e-14** | 7e-7 |
-| manhattan | 2e-9 | 2e-3 | **2e-11** | 9e-7 |
-| city10000 | 1e-9 | 8e-8 | **1e-11** | 2e-8 |
-| ais2klinik | 5e-10 | 5e-7 | **1e-15** | 3e-6 |
-| parking-garage | 2e-9 | 6e-9 | **2e-17** | 1e-6 |
-| sphere2500 | 4e-9 | 4e-7 | **5e-12** | 1e-6 |
-| sphere_bignoise_vertex3 | 7e-7 | 2e-3 | **1e-7** | 7e-3 |
-| cubicle | 4e-10 | 7e-5 | **1e-12** | 6e-6 |
-| torus3D | 6e-7 | 3e-5 | **1e-9** | 1e-4 |
-| rim | 5e-9 | 4e-5 | **2e-11** | 4e-2 |
-| grid3D | **2e-7** | x | x | 8e-5 |
+| intel | **2.94704140e-3 (2e-9)** | 2.94704356e-3 (5e-8) | **2.94704140e-3 (6e-15)** | 2.94718934e-3 (6e-7) |
+| CSAIL | **8.69496204e-3 (5e-9)** | 8.69496403e-3 (7e-3) | **8.69496204e-3 (1e-10)** | 8.69497621e-3 (1e-4) |
+| MIT | 1.55120352e-1 (8e-9) | 1.55120616e-1 (4e-4) | **1.27821902e-1 (4e-10)** | 2.13858247e-1 (2e-1) |
+| kitti_00 | **3.50162789e-3 (1e-9)** | 3.50162826e-3 (1e-7) | **3.50162789e-3 (2e-14)** | 3.50162863e-3 (7e-7) |
+| manhattan | **1.07997388e-1 (2e-9)** | 1.07997397e-1 (2e-3) | **1.07997388e-1 (2e-11)** | **1.07997388e-1 (9e-7)** |
+| city10000 | **4.12485429e-3 (1e-9)** | 4.12485664e-3 (8e-8) | 1.19615031e-2 (1e-11) | **4.12485429e-3 (2e-8)** |
+| ais2klinik | **1.72031489e-3 (5e-10)** | 1.72032234e-3 (5e-7) | 1.88272793e-3 (1e-15) | 1.73435986e-3 (3e-6) |
+| parking-garage | **1.68444144e-5 (2e-9)** | 1.68444255e-5 (6e-9) | **1.68444144e-5 (2e-17)** | 1.70569540e-5 (1e-6) |
+| sphere2500 | **2.27548044e-2 (4e-9)** | 2.27548101e-2 (4e-7) | **2.27548044e-2 (5e-12)** | 2.27548057e-2 (1e-6) |
+| sphere_bignoise_vertex3 | **5.71209643e+1 (7e-7)** | 6.73060153e+1 (2e-3) | 7.05031624e+1 (1e-7) | 7.01245293e+1 (7e-3) |
+| cubicle | **1.34852682e-2 (4e-10)** | 1.34852790e-2 (7e-5) | **1.34852682e-2 (1e-12)** | **1.34852682e-2 (6e-6)** |
+| torus3D | 5.51453932e-1 (6e-7) | 5.51461589e-1 (3e-5) | **5.51453929e-1 (1e-9)** | 5.51582681e-1 (1e-4) |
+| rim | 4.50767700e-1 (5e-9) | 4.43719960e-1 (4e-5) | **4.43719386e-1 (2e-11)** | 4.43949884e-1 (4e-2) |
+| grid3D | **1.77293263e+0 (2e-7)** | x | x | 1.88651205e+0 (8e-5) |
 
 fatrop stops at its tolerance (1e-8, or 1e-6 at an acceptable point); g2o keeps iterating until it can no
 longer lower the cost; Ceres and GTSAM stop on relative cost change.
