@@ -1,11 +1,24 @@
 #!/usr/bin/env bash
 # Build and install every solver in external/ into build/deps.
-# Usage: scripts/build_deps.sh [component ...]   (default: all)
+#
+# Usage: scripts/build_deps.sh [options] [component ...]   (default: all components)
+#   --jobs N          parallel build jobs (default: 4)
+#   --prefix PATH     install prefix (default: build/deps)
+# Components: blasfeo fatrop eigen ceres g2o gtsam
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PREFIX="${PREFIX:-$ROOT/build/deps}"
-JOBS="${JOBS:-4}"
+PREFIX="$ROOT/build/deps"
+JOBS=4
+components=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --jobs) JOBS="$2"; shift 2 ;;
+        --prefix) PREFIX="$2"; shift 2 ;;
+        -h|--help) sed -n '2,7p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        *) components+=("$1"); shift ;;
+    esac
+done
 FLAGS="-O3 -march=native"
 
 common=(
@@ -40,7 +53,6 @@ gtsam()   { build gtsam -DGTSAM_BUILD_TESTS=OFF -DGTSAM_BUILD_EXAMPLES_ALWAYS=OF
                 -DGTSAM_BUILD_PYTHON=OFF -DGTSAM_INSTALL_MATLAB_TOOLBOX=OFF \
                 -DGTSAM_BUILD_WITH_MARCH_NATIVE=ON -DCMAKE_INSTALL_RPATH="$PREFIX/lib"; }
 
-components=("$@")
 [[ ${#components[@]} -eq 0 ]] && components=(blasfeo fatrop eigen ceres g2o gtsam)
 for c in "${components[@]}"; do "$c"; done
 echo "installed into $PREFIX"

@@ -74,19 +74,22 @@ along the odometry chain.
 
 ```bash
 git submodule update --init
-scripts/build_deps.sh            # builds external/* into build/deps (JOBS=4 by default)
+scripts/build_deps.sh            # builds external/* into build/deps
 scripts/download_datasets.sh
 cmake -S . -B build && cmake --build build -j4
 scripts/run_benchmarks.sh        # or: build/slam_benchmark datasets/intel.g2o
 ```
 
-Environment overrides for `run_benchmarks.sh`:
+Options of `run_benchmarks.sh` (files given after the options replace the default `datasets/*.g2o`):
 
-- `SOLVERS=fatrop,ceres`: run only some of the solvers. Each solver runs in its own process.
-- `TIMEOUT=300`: stop a solver after that many seconds and report a timeout.
-- `MAX_ITERATIONS`: override every solver's iteration cap. By default each solver keeps its own;
+- `--solvers fatrop,ceres`: run only some of the solvers. Each solver runs in its own process.
+- `--timeout 600`: stop a solver after that many seconds and report a timeout.
+- `--max-iterations N`: override every solver's iteration cap. By default each solver keeps its own;
   g2o has none, so it gets 100 like GTSAM.
-- `BIN`: the benchmark binary (default `build/slam_benchmark`).
+- `--bin PATH`: the benchmark binary (default `build/slam_benchmark`).
+
+`build_deps.sh` takes `--jobs N` (default 4) and `--prefix PATH` (default `build/deps`), followed by
+the components to build (default: all).
 
 ## Output
 
@@ -103,7 +106,7 @@ For each dataset, one line per solver:
 
 ## Results
 
-`MAX_ITERATIONS=1000000 TIMEOUT=600 taskset -c 2 scripts/run_benchmarks.sh` on an Intel Core
+`taskset -c 2 scripts/run_benchmarks.sh --max-iterations 1000000 --timeout 600` on an Intel Core
 i7-10850H: no iteration cap, a 600 s time limit per run, one pinned core per run. Every other
 setting is each solver's default, including its convergence criterion, so the solvers stop at
 different accuracies (see the accuracy table). Each cell is wall time / iterations.
