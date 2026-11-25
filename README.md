@@ -5,10 +5,10 @@ Pose-graph SLAM benchmark: [fatrop](https://github.com/meco-group/fatrop) vs
 [GTSAM](https://github.com/borglab/gtsam) on public 2D (SE(2)) and 3D (SE(3))
 `.g2o` datasets.
 
-Each solver runs its out-of-the-box algorithm with all default settings,
-including its default iteration cap. Only log output is silenced. The problem
-formulation (residual, Jacobians, retraction) is shared, so all four minimise
-the same objective from the same initial guess.
+Each solver runs its out-of-the-box algorithm with its default settings. Only log output is
+silenced, and the results below lift the iteration caps and use a time limit instead. The problem
+formulation (residual, Jacobians, retraction) is shared, so all four minimise the same objective
+from the same initial guess.
 
 ## Layout
 
@@ -148,3 +148,17 @@ Accuracy: final objective and, in brackets, the max-norm of its gradient at the 
 
 fatrop stops at its tolerance (1e-8, or 1e-6 at an acceptable point); g2o keeps iterating until it can no
 longer lower the cost; Ceres and GTSAM stop on relative cost change.
+
+## Notes on fairness
+
+- Without SuiteSparse/CHOLMOD, Ceres and g2o use Eigen's simplicial sparse Cholesky. With CHOLMOD
+  they would be faster, mostly on the 3D datasets.
+- The 1/m objective scaling does not change any minimiser, but GTSAM's Levenberg–Marquardt damping
+  and error tolerance are absolute, so it makes them relatively stronger.
+- Iterations are counted as each solver reports them: GTSAM counts accepted steps only, and a g2o
+  iteration can include several rejected attempts.
+- Every run is single-threaded; Ceres and GTSAM could use more threads.
+- fatrop's graph linear algebra (`graph-perf` branch) was tuned while building this benchmark. Its
+  algorithm and settings were not changed.
+- Pose-graph optimisation is non-convex: all solvers start from the same initial guess and can end in
+  different local minima. None of the results is certified to be the global minimum.
