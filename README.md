@@ -103,31 +103,25 @@ For each dataset, one line per solver:
 
 ## Results
 
-`TIMEOUT=300 taskset -c 2 scripts/run_benchmarks.sh` on an Intel Core i7-10850H, one pinned core per
-run, with the submodule versions of this commit. Each cell is wall time / iterations.
+`MAX_ITERATIONS=1000000 TIMEOUT=600 taskset -c 2 scripts/run_benchmarks.sh` on an Intel Core
+i7-10850H: no iteration cap, a 600 s time limit per run, one pinned core per run. Each cell is wall
+time / iterations.
 
 | dataset | dim | poses | edges | fatrop | Ceres | g2o | GTSAM |
 |---|---|--:|--:|--:|--:|--:|--:|
-| intel | 2D | 1,728 | 2,512 | **0.025 s / 4** | 0.032 s / 6 | 0.072 s / 27 | 0.052 s / 3 |
-| CSAIL | 2D | 1,045 | 1,172 | **0.016 s / 12** | 0.028 s / 15 | 0.039 s / 38 | 0.036 s / 5 |
-| MIT | 2D | 808 | 827 | **0.036 s / 42 ⚠** | 0.054 s / 50 ✗ | 0.060 s / 100 ✗ | 0.640 s / 69 ⚠ |
-| kitti_00 | 2D | 4,541 | 4,677 | **0.049 s / 5** | 0.098 s / 12 | 0.161 s / 33 | 0.226 s / 7 |
-| manhattan | 2D | 3,500 | 5,453 | **0.071 s / 6** | 0.356 s / 34 | 0.582 s / 72 | 0.264 s / 7 |
-| city10000 | 2D | 10,000 | 20,687 | **0.300 s / 7** | 0.694 s / 9 | 8.15 s / 100 ✗ | 1.06 s / 8 |
-| ais2klinik | 2D | 15,115 | 16,727 | **0.249 s / 7** | 1.21 s / 50 ✗ | 2.16 s / 100 ✗ | 1.31 s / 9 |
-| parking-garage | 3D | 1,661 | 6,275 | **0.058 s / 3** | 0.543 s / 19 | 1.09 s / 49 | 0.179 s / 5 ⚠ |
-| sphere2500 | 3D | 2,500 | 4,949 | **0.190 s / 7** | 2.94 s / 13 | 6.59 s / 24 | 0.423 s / 7 |
-| sphere_bignoise_vertex3 | 3D | 2,200 | 8,647 | **15.3 s / 410** | 11.7 s / 50 ✗ | 22.4 s / 100 ✗ | 8.05 s / 100 ✗ |
-| cubicle | 3D | 5,750 | 16,869 | **0.603 s / 9** | 9.39 s / 31 | 13.9 s / 39 | 18.8 s / 68 |
-| torus3D | 3D | 5,000 | 9,048 | 10.5 s / 212 | 26.2 s / 50 ✗ | 50.8 s / 100 ✗ | **8.12 s / 57** |
-| rim | 3D | 10,195 | 29,743 | **2.84 s / 23 ⚠** | 40.7 s / 50 ✗ | 87.7 s / 76 | 55.6 s / 100 ✗ |
-| grid3D | 3D | 8,000 | 22,236 | 181.0 s / 100 | timeout | timeout | **172.0 s / 52 ⚠** |
+| intel | 2D | 1,728 | 2,512 | **0.029 s / 4** | 0.034 s / 6 | 0.082 s / 27 | 0.059 s / 3 |
+| CSAIL | 2D | 1,045 | 1,172 | **0.020 s / 12** | 0.032 s / 15 | 0.045 s / 38 | 0.044 s / 5 |
+| MIT | 2D | 808 | 827 | **0.041 s / 42** | 0.498 s / 405 | 0.207 s / 312 | 0.687 s / 69 |
+| kitti_00 | 2D | 4,541 | 4,677 | **0.056 s / 5** | 0.099 s / 12 | 0.172 s / 33 | 0.257 s / 7 |
+| manhattan | 2D | 3,500 | 5,453 | **0.081 s / 6** | 0.364 s / 34 | 0.624 s / 72 | 0.263 s / 7 |
+| city10000 | 2D | 10,000 | 20,687 | **0.305 s / 7** | 0.741 s / 9 | 14.7 s / 180 | 1.17 s / 8 |
+| ais2klinik | 2D | 15,115 | 16,727 | **0.252 s / 7** | 3.15 s / 124 | 8.11 s / 360 | 1.26 s / 9 |
+| parking-garage | 3D | 1,661 | 6,275 | **0.061 s / 3** | 0.529 s / 19 | 1.09 s / 49 | 0.178 s / 5 |
+| sphere2500 | 3D | 2,500 | 4,949 | **0.197 s / 7** | 2.92 s / 13 | 6.82 s / 24 | 0.416 s / 7 |
+| sphere_bignoise_vertex3 | 3D | 2,200 | 8,647 | 15.2 s / 410 | 39.1 s / 159 | 203.9 s / 867 | **9.88 s / 106** |
+| cubicle | 3D | 5,750 | 16,869 | **0.689 s / 9** | 9.95 s / 31 | 16.1 s / 39 | 22.2 s / 68 |
+| torus3D | 3D | 5,000 | 9,048 | 12.7 s / 212 | 59.1 s / 95 | 203.9 s / 377 | **8.07 s / 57** |
+| rim | 3D | 10,195 | 29,743 | **2.82 s / 23** | 94.3 s / 116 | 86.6 s / 76 | 117.7 s / 215 |
+| grid3D | 3D | 8,000 | 22,236 | 181.0 s / 100 | x | x | **171.7 s / 52** |
 
-- **Bold**: fastest solver that converged on that dataset.
-- ✗: did not converge. The solver hit its default iteration cap, or got stuck far from a minimum.
-- ⚠: converged, but at an objective more than 1% above the best any solver reached on that dataset.
-  Pose-graph optimisation is non-convex, so solvers can end in different local minima.
-- Iterations are counted the way each solver reports them: GTSAM counts accepted steps only, a g2o
-  iteration can include several rejected attempts, a Ceres iteration is one linear solve.
-- Ceres stops on relative cost change and GTSAM on relative and absolute error change, so both often
-  stop at a larger gradient than fatrop and g2o. The `grad_inf` column of the raw output shows this.
+**Bold**: fastest. x: did not converge within the time limit.
