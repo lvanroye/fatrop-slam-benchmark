@@ -25,7 +25,7 @@ src/main.cpp         runs every solver on one dataset and prints the results
 
 | solver | version | algorithm (default) | linear solver | license |
 |---|---|---|---|---|
-| fatrop | graph-perf branch | interior point, filter line search | built-in block-sparse Cholesky (blasfeo) | BSD-2 / EPL-2.0 |
+| fatrop | 3131a33 (main) | interior point, filter line search | built-in block-sparse Cholesky (blasfeo) | BSD-2 / EPL-2.0 |
 | Ceres | 2.2.0 | Levenberg–Marquardt | Eigen simplicial sparse Cholesky | BSD-3 |
 | g2o | 20241228 | Levenberg–Marquardt | Eigen simplicial sparse Cholesky | BSD (core) |
 | GTSAM | 4.3.0 | Levenberg–Marquardt | multifrontal Cholesky | BSD |
