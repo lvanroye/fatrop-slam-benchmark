@@ -6,6 +6,9 @@
 #include <g2o/core/optimization_algorithm_levenberg.h>
 #include <g2o/core/sparse_optimizer.h>
 #include <g2o/solvers/eigen/linear_solver_eigen.h>
+#ifdef SLAM_G2O_CHOLMOD
+#include <g2o/solvers/cholmod/linear_solver_cholmod.h>
+#endif
 
 #include <chrono>
 #include <memory>
@@ -55,11 +58,11 @@ public:
     bool write(std::ostream &) const override { return false; }
 };
 
-template <class S>
+template <class S, template <class> class LinearSolver = g2o::LinearSolverEigen>
 Result solve(const Problem<S> &problem, const Options &options)
 {
     using Block = g2o::BlockSolver<g2o::BlockSolverTraits<S::dim, S::dim>>;
-    using Linear = g2o::LinearSolverEigen<typename Block::PoseMatrixType>;
+    using Linear = LinearSolver<typename Block::PoseMatrixType>;
 
     const auto t0 = std::chrono::steady_clock::now();
     g2o::SparseOptimizer optimizer;
@@ -109,5 +112,10 @@ Result solve(const Problem<S> &problem, const Options &options)
 
 Result solve_g2o(const Problem<SE2> &problem, const Options &options) { return solve(problem, options); }
 Result solve_g2o(const Problem<SE3> &problem, const Options &options) { return solve(problem, options); }
+
+#ifdef SLAM_G2O_CHOLMOD
+Result solve_g2o_cholmod(const Problem<SE2> &p, const Options &o) { return solve<SE2, g2o::LinearSolverCholmod>(p, o); }
+Result solve_g2o_cholmod(const Problem<SE3> &p, const Options &o) { return solve<SE3, g2o::LinearSolverCholmod>(p, o); }
+#endif
 
 } // namespace slam

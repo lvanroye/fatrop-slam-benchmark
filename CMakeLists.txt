@@ -12,6 +12,16 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -DNDEBUG")
 list(PREPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/build/deps")
 set(CMAKE_BUILD_RPATH "${CMAKE_CURRENT_SOURCE_DIR}/build/deps/lib")
 
+# Opt-in CHOLMOD variants of Ceres and g2o (LGPL/GPL), built by
+# hand into build/deps-cholmod (SuiteSparse, OpenBLAS, METIS in build/deps-suitesparse).
+option(SLAM_CHOLMOD "Add CHOLMOD variants of Ceres and g2o" OFF)
+if(SLAM_CHOLMOD)
+    list(PREPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/build/deps-cholmod"
+                                   "${CMAKE_CURRENT_SOURCE_DIR}/build/deps-suitesparse")
+    list(PREPEND CMAKE_BUILD_RPATH "${CMAKE_CURRENT_SOURCE_DIR}/build/deps-cholmod/lib"
+                                   "${CMAKE_CURRENT_SOURCE_DIR}/build/deps-suitesparse/lib")
+endif()
+
 find_package(Eigen3 REQUIRED NO_MODULE)
 
 add_library(slam_common INTERFACE)

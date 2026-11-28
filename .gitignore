@@ -1,2 +1,3 @@
 build/
+build-*/
 datasets/*.g2o

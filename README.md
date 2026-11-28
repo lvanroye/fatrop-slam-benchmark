@@ -29,8 +29,31 @@ src/main.cpp         runs every solver on one dataset and prints the results
 | g2o | 20241228 | Levenberg–Marquardt | Eigen simplicial sparse Cholesky | BSD (core) |
 | GTSAM | 4.3.0 | Levenberg–Marquardt | multifrontal Cholesky | BSD |
 
-All dependencies are permissively licensed: Eigen is MPL-2.0 and blasfeo is
-BSD-2. SuiteSparse/CHOLMOD (LGPL/GPL) is disabled everywhere.
+The default build uses only permissively licensed dependencies: Eigen is MPL-2.0 and
+blasfeo is BSD-2. SuiteSparse/CHOLMOD is disabled there.
+
+### Optional CHOLMOD variants
+
+With `-DSLAM_CHOLMOD=ON`, Ceres and g2o get extra variants that use supernodal CHOLMOD as
+their linear solver:
+
+- `ceres-cholmod`: Ceres with `SUITE_SPARSE` and AMD ordering.
+- `ceres-cholmod-nd`: the same with nested-dissection ordering (METIS).
+- `g2o-cholmod`: g2o with `LinearSolverCholmod`.
+
+The plain `ceres` variant pins `EIGEN_SPARSE`, since a SuiteSparse-enabled Ceres would
+otherwise default to CHOLMOD.
+
+CHOLMOD's supernodal module is GPL (the rest of CHOLMOD is LGPL), so these builds are GPL.
+This repository contains no SuiteSparse code; it only calls the Ceres and g2o APIs.
+
+The dependencies are not built by `build_deps.sh`; build them by hand:
+
+- SuiteSparse (CHOLMOD with its supernodal module, plus SPQR, which Ceres requires),
+  single-threaded OpenBLAS and METIS, installed into `build/deps-suitesparse`.
+- Ceres and g2o configured against that prefix, installed into `build/deps-cholmod`.
+
+CMake then picks up both prefixes.
 
 ## Problem
 

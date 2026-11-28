@@ -95,7 +95,8 @@ class EdgeCost final : public ceres::SizedCostFunction<S::dim, S::nx, S::nx>
 };
 
 template <class S>
-Result solve(const Problem<S> &problem, const Options &options)
+Result solve(const Problem<S> &problem, const Options &options, bool cholmod = false,
+             ceres::LinearSolverOrderingType ordering = ceres::AMD)
 {
     Result res;
     res.solver = "ceres";
@@ -114,6 +115,10 @@ Result solve(const Problem<S> &problem, const Options &options)
     if (options.max_iterations > 0)
         so.max_num_iterations = options.max_iterations;
     so.logging_type = ceres::SILENT;
+    // Pin the backend: a SuiteSparse-enabled Ceres defaults to CHOLMOD.
+    so.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
+    so.sparse_linear_algebra_library_type = cholmod ? ceres::SUITE_SPARSE : ceres::EIGEN_SPARSE;
+    so.linear_solver_ordering_type = ordering;
     ceres::Solver::Summary summary;
     ceres::Solve(so, &cp, &summary);
     res.time_s = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
@@ -130,5 +135,12 @@ Result solve(const Problem<S> &problem, const Options &options)
 
 Result solve_ceres(const Problem<SE2> &problem, const Options &options) { return solve<SE2>(problem, options); }
 Result solve_ceres(const Problem<SE3> &problem, const Options &options) { return solve<SE3>(problem, options); }
+
+#ifdef SLAM_CERES_CHOLMOD
+Result solve_ceres_cholmod(const Problem<SE2> &p, const Options &o) { return solve<SE2>(p, o, true); }
+Result solve_ceres_cholmod(const Problem<SE3> &p, const Options &o) { return solve<SE3>(p, o, true); }
+Result solve_ceres_cholmod_nd(const Problem<SE2> &p, const Options &o) { return solve<SE2>(p, o, true, ceres::NESDIS); }
+Result solve_ceres_cholmod_nd(const Problem<SE3> &p, const Options &o) { return solve<SE3>(p, o, true, ceres::NESDIS); }
+#endif
 
 } // namespace slam

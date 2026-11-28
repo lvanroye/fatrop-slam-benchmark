@@ -30,6 +30,13 @@ std::vector<std::pair<std::string, SolveFn<S>>> solvers()
 #ifdef SLAM_WITH_G2O
     v.emplace_back("g2o", [](const Problem<S> &p, const Options &o) { return solve_g2o(p, o); });
 #endif
+#ifdef SLAM_CERES_CHOLMOD
+    v.emplace_back("ceres-cholmod", [](const Problem<S> &p, const Options &o) { return solve_ceres_cholmod(p, o); });
+    v.emplace_back("ceres-cholmod-nd", [](const Problem<S> &p, const Options &o) { return solve_ceres_cholmod_nd(p, o); });
+#endif
+#ifdef SLAM_G2O_CHOLMOD
+    v.emplace_back("g2o-cholmod", [](const Problem<S> &p, const Options &o) { return solve_g2o_cholmod(p, o); });
+#endif
 #ifdef SLAM_WITH_GTSAM
     v.emplace_back("gtsam", [](const Problem<S> &p, const Options &o) { return solve_gtsam(p, o); });
 #endif
@@ -43,9 +50,9 @@ int run(const std::string &path, const Options &opt, const std::string &only)
     std::vector<Eigen::VectorXd> x0(p.poses.begin(), p.poses.end());
     std::printf("dataset %s  %s  poses %zu  edges %zu  repaired_info %d\n", p.name.c_str(), S::name,
                 p.poses.size(), p.edges.size(), p.n_repaired_info);
-    std::printf("%-8s %5s %10s %16s %12s  %s\n", "solver", "iter", "time_s", "objective", "grad_inf",
+    std::printf("%-16s %5s %10s %16s %12s  %s\n", "solver", "iter", "time_s", "objective", "grad_inf",
                 "status");
-    std::printf("%-8s %5s %10s %16.8e %12.3e\n", "initial", "-", "-", objective(p, x0),
+    std::printf("%-16s %5s %10s %16.8e %12.3e\n", "initial", "-", "-", objective(p, x0),
                 gradient_norm(p, x0));
     for (const auto &[name, solve] : solvers<S>())
     {
@@ -58,10 +65,10 @@ int run(const std::string &path, const Options &opt, const std::string &only)
         }
         catch (const std::exception &e)
         {
-            std::printf("%-8s %5s %10s %16s %12s  error: %s\n", name.c_str(), "-", "-", "-", "-", e.what());
+            std::printf("%-16s %5s %10s %16s %12s  error: %s\n", name.c_str(), "-", "-", "-", "-", e.what());
             continue;
         }
-        std::printf("%-8s %5d %10.4f %16.8e %12.3e  %s%s\n", name.c_str(), r.iterations, r.time_s,
+        std::printf("%-16s %5d %10.4f %16.8e %12.3e  %s%s\n", name.c_str(), r.iterations, r.time_s,
                     objective(p, r.poses), gradient_norm(p, r.poses), r.converged ? "converged" : "not converged",
                     r.status.empty() ? "" : (" (" + r.status + ")").c_str());
         std::fflush(stdout);

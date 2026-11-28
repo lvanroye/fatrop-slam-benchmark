@@ -31,6 +31,13 @@ SLAM_DECLARE_SOLVER(ceres)
 #ifdef SLAM_WITH_G2O
 SLAM_DECLARE_SOLVER(g2o)
 #endif
+#ifdef SLAM_CERES_CHOLMOD
+SLAM_DECLARE_SOLVER(ceres_cholmod)
+SLAM_DECLARE_SOLVER(ceres_cholmod_nd)
+#endif
+#ifdef SLAM_G2O_CHOLMOD
+SLAM_DECLARE_SOLVER(g2o_cholmod)
+#endif
 #ifdef SLAM_WITH_GTSAM
 SLAM_DECLARE_SOLVER(gtsam)
 #endif

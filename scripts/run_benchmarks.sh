@@ -37,7 +37,7 @@ for f in "${files[@]}"; do
         out=$(${TIMEOUT:+timeout "$TIMEOUT"} "$BIN" "$f" --solvers "$s" \
               ${MAX_ITERATIONS:+--max-iterations "$MAX_ITERATIONS"})
         if [[ $? -eq 124 ]]; then
-            printf '%-8s timeout (>%s s)\n' "$s" "$TIMEOUT"
+            printf '%-16s timeout (>%s s)\n' "$s" "$TIMEOUT"
         else
             tail -n +4 <<< "$out"
         fi
