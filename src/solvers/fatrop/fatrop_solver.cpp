@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <limits>
 #include <memory>
 #include <tuple>
 #include <vector>
@@ -176,6 +177,43 @@ private:
     std::vector<Jac> off_ws_;  // unscaled off-diagonal blocks, one per pair
 };
 
+template <class S>
+std::vector<Eigen::VectorXd> unpack(const fatrop::VecRealView &x, std::size_t n)
+{
+    Eigen::VectorXd flat(x.m());
+    fatrop::unpack_vec(x.m(), x, 0, flat.data(), 1);
+    std::vector<Eigen::VectorXd> poses;
+    for (std::size_t k = 0; k < n; ++k)
+        poses.push_back(flat.segment<S::nx>(k * S::nx));
+    return poses;
+}
+
+// Records the iterate at the start of every fatrop iteration; throws to stop.
+template <class S>
+class TracedNlp final : public fatrop::NlpGraph
+{
+public:
+    struct Stop
+    {
+    };
+    TracedNlp(const std::shared_ptr<fatrop::GraphAbstract> &g, Tracer<S> &tracer)
+        : fatrop::NlpGraph(g), tracer_(tracer)
+    {
+    }
+    void callback(const fatrop::IpData<fatrop::GraphProblem> &d) override
+    {
+        if (record(d.iteration_number(), d.current_iterate().primal_x()))
+            throw Stop{};
+    }
+    bool record(int iteration, const fatrop::VecRealView &x)
+    {
+        return tracer_.record(iteration, [&](double *out) { fatrop::unpack_vec(x.m(), x, 0, out, 1); });
+    }
+
+private:
+    Tracer<S> &tracer_;
+};
+
 const char *flag_name(fatrop::IpSolverReturnFlag f)
 {
     using F = fatrop::IpSolverReturnFlag;
@@ -196,8 +234,9 @@ Result solve(const Problem<S> &problem, const Options &options)
 {
     using namespace fatrop;
     const auto t0 = std::chrono::steady_clock::now();
+    Tracer<S> tracer(problem, options);
     auto graph = std::make_shared<PoseGraph<S>>(problem);
-    auto nlp = std::make_shared<NlpGraph>(graph);
+    auto nlp = std::make_shared<TracedNlp<S>>(graph, tracer);
     OptionRegistry opts;
     IpAlgBuilder<GraphProblem> builder(nlp);
     auto alg = builder.with_options_registry(&opts).build();
@@ -205,21 +244,37 @@ Result solve(const Problem<S> &problem, const Options &options)
         opts.set_option<Index>("max_iter", options.max_iterations);
     opts.set_option<Index>("print_level", 0);
     opts.set_option<bool>("suppress_banner", true);
-    const IpSolverReturnFlag flag = alg->optimize();
+    if (options.trace)
+    {
+        opts.set_option<Index>("max_iter", options.max_iterations > 0 ? options.max_iterations
+                                                                      : std::numeric_limits<Index>::max());
+        opts.set_option<Scalar>("tolerance", 1e-14);
+        opts.set_option<Scalar>("tol_acceptable", 1e-14);
+    }
+    IpSolverReturnFlag flag = IpSolverReturnFlag::Unknown;
+    bool stopped = false;
+    try
+    {
+        flag = alg->optimize();
+    }
+    catch (const typename TracedNlp<S>::Stop &)
+    {
+        stopped = true;
+    }
     const auto t1 = std::chrono::steady_clock::now();
 
     Result res;
     res.solver = "fatrop";
     res.time_s = std::chrono::duration<double>(t1 - t0).count();
     res.converged = flag == IpSolverReturnFlag::Success || flag == IpSolverReturnFlag::StopAtAcceptablePoint;
-    res.status = flag_name(flag);
+    res.status = stopped ? "trace stop" : flag_name(flag);
     auto ipdata = builder.get_ipdata();
     res.iterations = ipdata->iteration_number();
     const VecRealView &x = ipdata->current_iterate().primal_x();
-    Eigen::VectorXd flat(x.m());
-    unpack_vec(x.m(), x, 0, flat.data(), 1);
-    for (std::size_t k = 0; k < problem.poses.size(); ++k)
-        res.poses.push_back(flat.segment<S::nx>(k * S::nx));
+    if (options.trace && !stopped)
+        nlp->record(res.iterations, x);
+    res.poses = unpack<S>(x, problem.poses.size());
+    res.trace = tracer.take();
     return res;
 }
 

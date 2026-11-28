@@ -11,6 +11,7 @@
 #include <gtsam/nonlinear/Values.h>
 
 #include <chrono>
+#include <limits>
 
 namespace slam
 {
@@ -94,6 +95,7 @@ Result solve(const Problem<S> &problem, const Options &options)
 {
     using Pose = typename Traits<S>::Pose;
     const auto t0 = std::chrono::steady_clock::now();
+    Tracer<S> tracer(problem, options);
 
     gtsam::NonlinearFactorGraph graph;
     gtsam::Values initial;
@@ -110,7 +112,28 @@ Result solve(const Problem<S> &problem, const Options &options)
     params.verbosity = gtsam::NonlinearOptimizerParams::SILENT;
     params.verbosityLM = gtsam::LevenbergMarquardtParams::SILENT;
     gtsam::LevenbergMarquardtOptimizer optimizer(graph, initial, params);
-    const gtsam::Values values = optimizer.optimize();
+    gtsam::Values values;
+    if (!options.trace)
+        values = optimizer.optimize();
+    else
+    {
+        // LM steps until the trace target, or until a step no longer lowers the error.
+        params.maxIterations = options.max_iterations > 0 ? options.max_iterations : std::numeric_limits<int>::max();
+        auto record = [&] {
+            return tracer.record(static_cast<int>(optimizer.iterations()), [&](double *out) {
+                for (std::size_t k = 0; k < problem.poses.size(); ++k, out += S::nx)
+                    Eigen::Map<typename S::Pose>{out} = Traits<S>::from_gtsam(optimizer.values().template at<Pose>(k));
+            }) || optimizer.iterations() >= params.maxIterations;
+        };
+        bool stop = record();
+        while (!stop)
+        {
+            const double before = optimizer.error();
+            optimizer.iterate();
+            stop = record() || !(optimizer.error() < before) || optimizer.lambda() >= params.lambdaUpperBound;
+        }
+        values = optimizer.values();
+    }
 
     Result res;
     res.solver = "gtsam";
@@ -122,6 +145,7 @@ Result solve(const Problem<S> &problem, const Options &options)
     res.status = capped ? "max iterations" : gave_up ? "lambda limit" : "error tolerance";
     for (std::size_t k = 0; k < problem.poses.size(); ++k)
         res.poses.emplace_back(Traits<S>::from_gtsam(values.at<Pose>(k)));
+    res.trace = tracer.take();
     return res;
 }
 

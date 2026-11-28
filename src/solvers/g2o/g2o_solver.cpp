@@ -3,6 +3,7 @@
 #include <g2o/core/base_binary_edge.h>
 #include <g2o/core/base_vertex.h>
 #include <g2o/core/block_solver.h>
+#include <g2o/core/hyper_graph_action.h>
 #include <g2o/core/optimization_algorithm_levenberg.h>
 #include <g2o/core/sparse_optimizer.h>
 #include <g2o/solvers/eigen/linear_solver_eigen.h>
@@ -10,7 +11,9 @@
 #include <g2o/solvers/cholmod/linear_solver_cholmod.h>
 #endif
 
+#include <algorithm>
 #include <chrono>
+#include <limits>
 #include <memory>
 #include <vector>
 
@@ -58,6 +61,34 @@ public:
     bool write(std::ostream &) const override { return false; }
 };
 
+template <class S>
+class TraceAction final : public g2o::HyperGraphAction
+{
+public:
+    TraceAction(Tracer<S> &tracer, const std::vector<Vertex<S> *> &v, bool &stop)
+        : tracer_(tracer), v_(v), stop_(stop)
+    {
+    }
+    g2o::HyperGraphAction *operator()(const g2o::HyperGraph *, Parameters *) override
+    {
+        stop_ = record(tracer_, ++iteration_, v_);
+        return this;
+    }
+    static bool record(Tracer<S> &tracer, int iteration, const std::vector<Vertex<S> *> &v)
+    {
+        return tracer.record(iteration, [&](double *out) {
+            for (const auto *vk : v)
+                out = std::copy(vk->estimate().data(), vk->estimate().data() + S::nx, out);
+        });
+    }
+
+private:
+    Tracer<S> &tracer_;
+    const std::vector<Vertex<S> *> &v_;
+    bool &stop_;
+    int iteration_ = 0;
+};
+
 template <class S, template <class> class LinearSolver = g2o::LinearSolverEigen>
 Result solve(const Problem<S> &problem, const Options &options)
 {
@@ -65,6 +96,7 @@ Result solve(const Problem<S> &problem, const Options &options)
     using Linear = LinearSolver<typename Block::PoseMatrixType>;
 
     const auto t0 = std::chrono::steady_clock::now();
+    Tracer<S> tracer(problem, options);
     g2o::SparseOptimizer optimizer;
     optimizer.setVerbose(false);
     optimizer.setAlgorithm(new g2o::OptimizationAlgorithmLevenberg(
@@ -92,7 +124,16 @@ Result solve(const Problem<S> &problem, const Options &options)
 
     optimizer.initializeOptimization();
     // g2o has no default iteration count; use GTSAM's default of 100.
-    const int cap = options.max_iterations > 0 ? options.max_iterations : 100;
+    int cap = options.max_iterations > 0 ? options.max_iterations : 100;
+    bool stop = false;
+    TraceAction<S> action(tracer, vertices, stop);
+    if (options.trace)
+    {
+        cap = options.max_iterations > 0 ? options.max_iterations : std::numeric_limits<int>::max();
+        optimizer.setForceStopFlag(&stop);
+        optimizer.addPostIterationAction(&action);
+        stop = TraceAction<S>::record(tracer, 0, vertices);
+    }
     const int iterations = optimizer.optimize(cap);
     const auto t1 = std::chrono::steady_clock::now();
 
@@ -105,6 +146,9 @@ Result solve(const Problem<S> &problem, const Options &options)
         res.status = "failed";
     for (const auto *v : vertices)
         res.poses.emplace_back(v->estimate());
+    if (options.trace)
+        optimizer.removePostIterationAction(&action);
+    res.trace = tracer.take();
     return res;
 }
 

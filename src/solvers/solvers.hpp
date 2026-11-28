@@ -14,6 +14,7 @@
 #pragma once
 
 #include "../common/problem.hpp"
+#include "../common/trace.hpp"
 
 #define SLAM_DECLARE_SOLVER(NAME)                                                     \
     namespace slam                                                                    \

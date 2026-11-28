@@ -1,12 +1,16 @@
 // slam_benchmark <file.g2o> [--max-iterations N] [--solvers a,b,...]
+//                [--trace out.csv] [--grad-target G] [--time-limit S]
 //
 // Runs every compiled-in solver on one pose graph and prints one line per
 // solver: iterations, wall time, objective and gradient norm at the
-// returned poses.
+// returned poses. With --trace, every solver runs in trace mode (see
+// Options::trace) and appends its iterates to out.csv as
+// dataset,solver,iteration,time_s,objective,grad_inf.
 #include "solvers/solvers.hpp"
 
 #include <cstdio>
 #include <cstring>
+#include <fstream>
 #include <functional>
 #include <iostream>
 #include <string>
@@ -44,7 +48,7 @@ std::vector<std::pair<std::string, SolveFn<S>>> solvers()
 }
 
 template <class S>
-int run(const std::string &path, const Options &opt, const std::string &only)
+int run(const std::string &path, const Options &opt, const std::string &only, const std::string &trace)
 {
     const Problem<S> p = load_g2o<S>(path);
     std::vector<Eigen::VectorXd> x0(p.poses.begin(), p.poses.end());
@@ -72,6 +76,17 @@ int run(const std::string &path, const Options &opt, const std::string &only)
                     objective(p, r.poses), gradient_norm(p, r.poses), r.converged ? "converged" : "not converged",
                     r.status.empty() ? "" : (" (" + r.status + ")").c_str());
         std::fflush(stdout);
+        if (!trace.empty())
+        {
+            std::ofstream out(trace, std::ios::app);
+            out.precision(10);
+            for (const auto &t : r.trace) // metrics evaluated after the solve, outside its timing
+            {
+                const auto x = poses_of<S>(t.x);
+                out << p.name << ',' << name << ',' << t.iteration << ',' << t.time_s << ',' << objective(p, x)
+                    << ',' << gradient_norm(p, x) << '\n';
+            }
+        }
     }
     return 0;
 }
@@ -84,18 +99,24 @@ int main(int argc, char **argv)
         return 1;
     }
     Options opt;
-    std::string only;
+    std::string only, trace;
     for (int i = 2; i + 1 < argc; i += 2)
     {
         if (!std::strcmp(argv[i], "--max-iterations"))
             opt.max_iterations = std::stoi(argv[i + 1]);
         else if (!std::strcmp(argv[i], "--solvers"))
             only = argv[i + 1];
+        else if (!std::strcmp(argv[i], "--trace"))
+            trace = argv[i + 1], opt.trace = true;
+        else if (!std::strcmp(argv[i], "--grad-target"))
+            opt.grad_target = std::stod(argv[i + 1]);
+        else if (!std::strcmp(argv[i], "--time-limit"))
+            opt.time_limit = std::stod(argv[i + 1]);
     }
     switch (detect_dimension(argv[1]))
     {
-    case 2: return run<SE2>(argv[1], opt, only);
-    case 3: return run<SE3>(argv[1], opt, only);
+    case 2: return run<SE2>(argv[1], opt, only, trace);
+    case 3: return run<SE3>(argv[1], opt, only, trace);
     default: std::cerr << "not an SE2/SE3 pose graph: " << argv[1] << "\n"; return 1;
     }
 }

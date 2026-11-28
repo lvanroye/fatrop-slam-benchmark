@@ -14,8 +14,9 @@ from the same initial guess.
 
 ```
 external/            solver sources (git submodules)
-scripts/             build_deps.sh, download_datasets.sh, run_benchmarks.sh
-src/common/          SE(2)/SE(3) definitions, .g2o loader, objective and gradient
+scripts/             build_deps.sh, download_datasets.sh, run_benchmarks.sh,
+                     run_traces.sh, time_to_target.py
+src/common/          SE(2)/SE(3) definitions, .g2o loader, objective and gradient, trace recorder
 src/solvers/<name>/  one adapter per solver: fatrop, ceres, g2o, gtsam
 src/main.cpp         runs every solver on one dataset and prints the results
 ```
@@ -139,3 +140,33 @@ Every other setting is each solver's default, including its convergence criterio
 stop at different accuracies. fatrop stops at its tolerance (1e-8, or 1e-6 at an acceptable point);
 g2o keeps iterating until it can no longer lower the cost; Ceres and GTSAM stop on relative cost
 change. Compare `grad_inf` alongside `time_s`.
+
+## Time to a common target
+
+Each solver's default stopping rule differs, so the default run compares solvers at different
+accuracies. Trace mode compares them at the same one: every solver records each iterate, and the
+time to the first iterate below a shared gradient (or objective) target is read off afterwards.
+
+```bash
+taskset -c 2 scripts/run_traces.sh --out traces.csv
+scripts/time_to_target.py traces.csv summary.csv
+```
+
+- Per dataset and solver, `run_traces.sh` runs two processes, one at a time:
+  - Probe: runs until `grad_inf <= 1e-10`, until the solver can make no more progress, or until
+    the time limit. This gives the iteration count N.
+  - Measure: reruns capped at N iterations.
+- During the measured solve, each iteration only reads the clock and copies the iterate, and that
+  time is subtracted. Objective and gradient are evaluated after the solve.
+- In trace mode each solver's own convergence test is disabled:
+  - Ceres: all tolerances 0, plus an `IterationCallback`.
+  - fatrop: tolerances 1e-14, plus the NLP callback.
+  - g2o: a post-iteration action and the force-stop flag.
+  - GTSAM: `iterate()` in a loop, stopping when a step no longer lowers the error.
+- `traces.csv` has one row per iterate: `dataset,solver,iteration,time_s,objective,grad_inf`.
+- `summary.csv` has the time and iteration count to reach `grad_inf` <= 1e-4, 1e-6 and 1e-8, and to
+  get within 1e-6 of the lowest objective any solver reached. It also has the final objective and
+  gradient.
+- The binary takes the same options directly: `--trace FILE`, `--grad-target G`,
+  `--time-limit S`.
+

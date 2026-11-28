@@ -38,6 +38,20 @@ struct Problem
 struct Options
 {
     int max_iterations = 0; // 0: keep the solver's default
+    // Trace mode: record the time and a copy of every iterate, and replace
+    // the solver's own stopping rule by the iteration cap, time_limit, or
+    // (if grad_target > 0) shared gradient norm <= grad_target; the solver
+    // still stops when it can make no more progress.
+    bool trace = false;
+    double grad_target = 0.0; // > 0: probe run, checks the gradient every iterate
+    double time_limit = 600.0;
+};
+
+struct Iterate
+{
+    int iteration;
+    double time_s;         // excludes the time spent recording
+    std::vector<double> x; // poses, S::nx each
 };
 
 struct Result
@@ -48,6 +62,7 @@ struct Result
     double time_s = 0.0;
     std::string status;
     std::vector<Eigen::VectorXd> poses; // final poses, S::nx each
+    std::vector<Iterate> trace;         // trace mode only
 };
 
 // Information matrices of a few public datasets are not positive definite.

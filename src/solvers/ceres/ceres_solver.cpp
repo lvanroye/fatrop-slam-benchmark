@@ -4,7 +4,9 @@
 
 #include <ceres/ceres.h>
 
+#include <algorithm>
 #include <chrono>
+#include <limits>
 
 namespace slam
 {
@@ -95,6 +97,25 @@ class EdgeCost final : public ceres::SizedCostFunction<S::dim, S::nx, S::nx>
 };
 
 template <class S>
+class TraceCallback final : public ceres::IterationCallback
+{
+  public:
+    TraceCallback(Tracer<S> &tracer, const std::vector<typename S::Pose> &x) : tracer_(tracer), x_(x) {}
+    ceres::CallbackReturnType operator()(const ceres::IterationSummary &it) override
+    {
+        const bool stop = tracer_.record(it.iteration, [&](double *out) {
+            for (const auto &xi : x_)
+                out = std::copy(xi.data(), xi.data() + S::nx, out);
+        });
+        return stop ? ceres::SOLVER_TERMINATE_SUCCESSFULLY : ceres::SOLVER_CONTINUE;
+    }
+
+  private:
+    Tracer<S> &tracer_;
+    const std::vector<typename S::Pose> &x_;
+};
+
+template <class S>
 Result solve(const Problem<S> &problem, const Options &options, bool cholmod = false,
              ceres::LinearSolverOrderingType ordering = ceres::AMD)
 {
@@ -103,6 +124,7 @@ Result solve(const Problem<S> &problem, const Options &options, bool cholmod = f
     std::vector<typename S::Pose> x(problem.poses.begin(), problem.poses.end());
 
     const auto t0 = std::chrono::steady_clock::now();
+    Tracer<S> tracer(problem, options);
     ceres::Problem cp;
     PoseManifold<S> *manifold = new PoseManifold<S>;
     for (auto &xi : x)
@@ -119,6 +141,16 @@ Result solve(const Problem<S> &problem, const Options &options, bool cholmod = f
     so.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
     so.sparse_linear_algebra_library_type = cholmod ? ceres::SUITE_SPARSE : ceres::EIGEN_SPARSE;
     so.linear_solver_ordering_type = ordering;
+    TraceCallback<S> callback(tracer, x);
+    if (options.trace)
+    {
+        so.function_tolerance = 0.0;
+        so.gradient_tolerance = 0.0;
+        so.parameter_tolerance = 0.0;
+        so.max_num_iterations = options.max_iterations > 0 ? options.max_iterations : std::numeric_limits<int>::max();
+        so.update_state_every_iteration = true;
+        so.callbacks.push_back(&callback);
+    }
     ceres::Solver::Summary summary;
     ceres::Solve(so, &cp, &summary);
     res.time_s = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
@@ -128,6 +160,7 @@ Result solve(const Problem<S> &problem, const Options &options, bool cholmod = f
     if (!res.converged)
         res.status = summary.message;
     res.poses.assign(x.begin(), x.end());
+    res.trace = tracer.take();
     return res;
 }
 
